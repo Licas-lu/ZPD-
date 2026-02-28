@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZPD 疯狂动物城：沈阳美食搜查令</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 相关库 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 引入图标库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a192f;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .zootopia-bg {
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            position: fixed; 
+            inset: 0; 
+            opacity: 0.35; 
+            filter: blur(4px); 
+            z-index: -1;
+        }
+
+        .zpd-glass {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .police-btn {
+            background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+            border-bottom: 4px solid #172554;
+            transition: all 0.2s;
+        }
+
+        .police-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(30, 64, 175, 0.5);
+        }
+
+        .district-card {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .district-card:hover {
+            transform: translateY(-8px) scale(1.03);
+            background: rgba(30, 64, 175, 0.4);
+            border-color: rgba(234, 179, 8, 0.5);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes fly-into-box {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: scale(0) rotate(720deg) translate(0, 500px); opacity: 0; }
+        }
+
+        .archive-anim { animation: fly-into-box 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+        @keyframes box-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+            50% { box-shadow: 0 0 50px rgba(59, 130, 246, 0.7); }
+        }
+
+        .box-ready { animation: box-glow 2s infinite; }
+
+        @keyframes slow-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .slow-motion { animation: slow-blink 3s infinite; }
+
+        .fade-in { animation: fadeIn 0.7s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 图片失败/加载中占位符样式 */
+        .img-fallback {
+            background: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const ASSETS = {
+            nick: encodeURIComponent('nike.jpg'),
+            judy: encodeURIComponent('judy.jpg'),
+            judy2: encodeURIComponent('judy2.jpg'),
+            flash: encodeURIComponent('flash.jpg'),
+            background: encodeURIComponent('background.jpg') 
+        };
+
+        const zootopiaDistricts = {
+            "和平区": { name: "中心城区", desc: "大都会行政中心", full: "充满繁忙气息的行政中枢。" },
+            "沈河区": { name: "撒哈拉广场", desc: "高级沙漠生活区", full: "热浪袭人的异域风情之地。" },
+            "大东区": { name: "苔原镇", desc: "冰封极地景观", full: "终年积雪但内心火热的城区。" },
+            "皇姑区": { name: "热带雨林区", desc: "神秘湿地秘境", full: "植被茂密的天然氧吧与秘境。" },
+            "铁西区": { name: "工业仓储区", desc: "硬核力量象征", full: "力量与汗水铸就的钢铁丛林。" },
+            "浑南区": { name: "未来之城", desc: "高新科技窗口", full: "触手可及的明日世界科技感。" },
+            "于洪区": { name: "原野郊区", desc: "宁静草原风光", full: "广阔草场与悠闲的田园时光。" },
+            "苏家屯区": { name: "小鼠城边境", desc: "微型精致社区", full: "微缩景观里的极致美味密度。" },
+            "沈北新区": { name: "冰川森林", desc: "自然科学边界", full: "探索自然与现代文明的交界。" }
+        };
+
+        const shenyangFoodPool = {
+            "和平区": ["味家烤肉烤鳗鱼", "小广四菜一绝", "七菜馆", "战记酸菜火锅", "鹿鸣春饭店"],
+            "沈河区": ["千里马烧烤", "惠德坊肘子饭", "协顺园回头馆", "子源面馆", "渝宗巷子火锅"],
+            "大东区": ["红丹丹寿司", "大姐炒饭", "三顺筋饼", "第一家雪钧串店", "老三鸡架肉串"],
+            "皇姑区": ["老奉天焦火鸡架", "火云龙烤肉", "白山烧烤", "鱼之源水煮鱼", "白鹤大冷面"],
+            "铁西区": ["几毛大酒店", "群乐饭店", "公园老字号面馆", "小秋味蕾炒鸡", "春艳砂锅居"],
+            "浑南区": ["百福老丁头", "王奋斗酸汤牛肉", "芝酥达礼", "刘记匠心大盘鸡", "牛YO寿喜烧"],
+            "于洪区": ["米娅泰式小厨", "牛九铜火锅", "老云龙泥炉烤肉"],
+            "苏家屯区": ["韩麦大冷面", "千惠炸串", "胡记麻辣香锅", "文荣串店"],
+            "沈北新区": ["胖丫春饼", "陈记隆江猪脚饭", "四川燃面", "螺三岁螺蛳粉"]
+        };
+
+        const districts = Object.keys(shenyangFoodPool);
+
+        const SafeImage = ({ src, alt, className }) => {
+            const [status, setStatus] = useState('loading'); // loading, success, error
+
+            useEffect(() => {
+                const img = new Image();
+                img.src = src;
+                img.onload = () => setStatus('success');
+                img.onerror = () => setStatus('error');
+            }, [src]);
+
+            if (status === 'error') {
+                return <div className={`${className} img-fallback`}><span>ERROR</span></div>;
+            }
+            
+            if (status === 'loading') {
+                // ✅ 备注：优化 Flash 头像加载感。在图片加载出来前显示一个带有 ZPD 风格的呼吸占位符。
+                return (
+                    <div className={`${className} img-fallback animate-pulse bg-blue-900/50 flex items-center justify-center`}>
+                        <div className="w-8 h-8 rounded-full border-2 border-blue-400/30"></div>
+                    </div>
+                );
+            }
+
+            return <img src={src} alt={alt} className={className} />;
+        };
+
+        const callGemini = async (prompt, systemInstruction = "") => {
+            const apiKey = ""; 
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            };
+
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    }
+                } catch (e) {
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                }
+            }
+            return "报告！通讯信号被羊副市长拦截了...不过甜甜圈是真的好吃！🍩";
+        };
+
+        function App() {
+            const [stage, setStage] = useState('HOME'); 
+            const [selectedDistrict, setSelectedDistrict] = useState("");
+            const [selectedRest, setSelectedRest] = useState("");
+            const [isSpinning, setIsSpinning] = useState(false);
+            const [aiReport, setAiReport] = useState("");
+            const [isAiLoading, setIsAiLoading] = useState(false);
+
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            });
+
+            const startArchive = () => {
+                setStage('FLYING');
+                setTimeout(() => setStage('PICK_BOX'), 1200);
+            };
+
+            const openBox = () => {
+                const randomIdx = Math.floor(Math.random() * districts.length);
+                setSelectedDistrict(districts[randomIdx]);
+                setStage('MISSION_BRIEF');
+            };
+
+            const executeSearch = () => {
+                const options = shenyangFoodPool[selectedDistrict];
+                const result = options[Math.floor(Math.random() * options.length)];
+                setSelectedRest(result);
+                
+                // ✅ 备注：大幅提升“比对证据库”生成速度。
+                // 优化点：在“闪电”还在查询的时候，就已经在后台异步发起 AI 请求了。
+                // 等 4 秒转场结束后，AI 结果大概率已经返回，避免了进入结果页后的二次等待。
+                fetchAiReport(result, selectedDistrict);
+
+                setStage('DRAWING');
+                setIsSpinning(true);
+                setTimeout(() => {
+                    setIsSpinning(false);
+                    setStage('RESULT');
+                }, 4000); 
+            };
+
+            const fetchAiReport = async (restName, districtName) => {
+                setIsAiLoading(true);
+                const systemPrompt = `你现在是《疯狂动物城》的豹警官。你要对在沈阳${districtName}发现的餐厅“${restName}”写一份超级热情的点评。字数50字内，必须包含甜甜圈元素。`;
+                const report = await callGemini(`餐厅：${restName}`, systemPrompt);
+                setAiReport(report);
+                setIsAiLoading(false);
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center relative">
+                    <div 
+                        className="zootopia-bg"
+                        style={{ backgroundImage: `url(${ASSETS.background})` }}
+                    ></div>
+                    
+                    {/* Header */}
+                    <div className="z-10 w-full max-w-lg mt-8 px-6 flex flex-col items-center text-center">
+                        <div className="bg-yellow-500 p-2 rounded-full border-4 border-white mb-3 shadow-2xl">
+                            <i data-lucide="shield-check" className="text-blue-900 w-8 h-8"></i>
+                        </div>
+                        <h1 className="text-3xl font-black italic tracking-tighter text-white drop-shadow-lg uppercase">ZPD Shenyang Case</h1>
+                        <p className="text-yellow-400 font-bold text-[10px] tracking-[0.4em] uppercase mt-1">Special Food Operations</p>
+                    </div>
+
+                    <div className="z-10 w-full max-w-4xl mt-6 px-4 pb-10">
+                        
+                        {/* STAGE: HOME */}
+                        {(stage === 'HOME' || stage === 'FLYING') && (
+                            <div className="fade-in">
+                                <div className="zpd-glass p-5 rounded-[2rem] mb-8 flex items-center gap-5 border-l-8 border-blue-500 shadow-xl">
+                                    <SafeImage src={ASSETS.judy} alt="Judy" className="w-20 h-20 rounded-2xl border-2 border-white object-cover shadow-lg" />
+                                    <div>
+                                        <p className="font-black text-blue-400 text-lg italic uppercase">Officer Judy Hopps:</p>
+                                        <p className="text-sm text-white/90 leading-snug">
+                                            “沈阳分局的情报网已经锁定了9个关键区域。尼克已经准备好了加密归档箱，准备好出发了吗？”
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10 relative">
+                                    {districts.map((d, i) => (
+                                        <div 
+                                            key={d} 
+                                            className={`zpd-glass p-5 rounded-[1.5rem] flex flex-col items-start district-card border-white/5 ${stage === 'FLYING' ? 'archive-anim' : ''}`} 
+                                            style={{animationDelay: `${i*0.06}s`}}
+                                        >
+                                            <div className="w-full flex justify-between items-start mb-3">
+                                                <div className="p-2 bg-yellow-500/10 rounded-lg">
+                                                    <i data-lucide="map-pin" className="text-yellow-500 w-5 h-5"></i>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-blue-400/60 uppercase tracking-widest italic">Sector-{i+1}</span>
+                                            </div>
+                                            <h3 className="text-xl font-black text-white italic mb-1 uppercase tracking-tighter">{zootopiaDistricts[d].name}</h3>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+                                                <span className="text-[11px] font-bold text-blue-300 uppercase italic tracking-wider">{d}</span>
+                                            </div>
+                                            <p className="text-[11px] text-white/50 leading-relaxed font-medium">{zootopiaDistricts[d].desc}</p>
+                                            <div className="mt-4 pt-3 border-t border-white/5 w-full flex items-center justify-between">
+                                                <span className="text-[9px] text-white/30 font-mono tracking-tighter">DATA_ENCRYPTED</span>
+                                                <i data-lucide="chevron-right" className="text-white/20 w-3.5 h-3.5"></i>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {stage === 'HOME' && (
+                                    <div className="flex justify-center">
+                                        <button onClick={startArchive} className="w-full sm:w-2/3 py-6 police-btn rounded-[2rem] text-2xl font-black italic flex items-center justify-center gap-3 text-white">
+                                            <i data-lucide="package" className="w-8 h-8"></i> 档案装箱，准备出警
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* STAGE: PICK_BOX */}
+                        {stage === 'PICK_BOX' && (
+                            <div className="text-center fade-in flex flex-col items-center py-8">
+                                <div className="zpd-glass p-5 rounded-[2.5rem] mb-12 flex items-center gap-5 border-l-8 border-orange-500 shadow-2xl max-w-md">
+                                    <SafeImage src={ASSETS.nick} alt="Nick" className="w-20 h-20 rounded-2xl border-2 border-white object-cover shadow-lg" />
+                                    <div className="text-left">
+                                        <p className="font-black text-orange-400 text-lg italic uppercase">Officer Nick Wilde:</p>
+                                        <p className="text-sm text-white/90 italic">“哦，萝卜头。听我的，随便选一个，沈阳的味道从不骗人。”</p>
+                                    </div>
+                                </div>
+                                <button onClick={openBox} className="group relative transition-all active:scale-90">
+                                    <div className="zpd-glass w-56 h-56 rounded-[4rem] flex items-center justify-center border-4 border-white/20 box-ready hover:border-yellow-400">
+                                        <i data-lucide="package" className="text-yellow-500 w-24 h-24 group-hover:rotate-12 transition-transform duration-500"></i>
+                                        <div className="absolute -top-4 -right-4 bg-blue-600 w-16 h-16 rounded-full border-4 border-white flex items-center justify-center shadow-2xl text-white">
+                                            <i data-lucide="shield-check" className="w-8 h-8"></i>
+                                        </div>
+                                    </div>
+                                    <p className="mt-8 text-sm font-black tracking-[0.6em] text-blue-400 uppercase animate-pulse">点击开启绝密档案</p>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* STAGE: MISSION_BRIEF */}
+                        {stage === 'MISSION_BRIEF' && (
+                            <div className="zpd-glass p-8 rounded-[4rem] border-t-[12px] border-yellow-500 fade-in shadow-2xl text-center">
+                                <div className="flex justify-center mb-6">
+                                    <div className="relative">
+                                        <SafeImage src={ASSETS.judy2} alt="judy2" className="w-28 h-28 rounded-3xl border-4 border-yellow-500 object-cover shadow-2xl" />
+                                        <div className="absolute -bottom-2 -right-2 bg-blue-600 p-2 rounded-lg border-2 border-white text-white">
+                                            <i data-lucide="shield-check" className="w-5 h-5"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{zootopiaDistricts[selectedDistrict].name}</h2>
+                                <div className="inline-block px-4 py-1 bg-white/5 rounded-full mb-6">
+                                    <p className="text-blue-300 text-xs font-bold italic">原始辖区定位：{selectedDistrict}</p>
+                                </div>
+                                <p className="text-white/80 text-lg mb-10 px-6 italic leading-relaxed font-medium">“{zootopiaDistricts[selectedDistrict].full}”</p>
+                                <button onClick={executeSearch} className="w-full py-6 police-btn rounded-[2.5rem] text-2xl font-black italic flex items-center justify-center gap-3 text-white">
+                                    <i data-lucide="search" className="w-8 h-8"></i> 开始搜索线索
+                                </button>
+                            </div>
+                        )}
+
+                        {/* STAGE: DRAWING */}
+                        {stage === 'DRAWING' && (
+                            <div className="zpd-glass p-12 rounded-[4rem] flex flex-col items-center justify-center text-center shadow-2xl fade-in">
+                                <div className="relative mb-8">
+                                    <SafeImage src={ASSETS.flash} alt="Flash" className="w-40 h-40 rounded-full border-4 border-yellow-500 object-cover shadow-2xl" />
+                                    <div className="absolute inset-[-10px] rounded-full border-4 border-blue-500 border-t-transparent animate-[spin_3s_linear_infinite]"></div>
+                                </div>
+                                <p className="text-3xl font-black italic text-white mb-3">闪....电....正....在....查....询....</p>
+                                <p className="text-blue-400 text-xs font-black tracking-[0.4em] slow-motion uppercase">Connecting... to... ZPD... Database...</p>
+                            </div>
+                        )}
+
+                        {/* STAGE: RESULT */}
+                        {stage === 'RESULT' && (
+                            <div className="fade-in">
+                                <div className="zpd-glass rounded-[4rem] p-10 relative overflow-hidden border-2 border-white/5 shadow-2xl">
+                                    <div className="absolute -right-16 -top-16 text-[250px] opacity-[0.03] rotate-12 select-none">🍩</div>
+                                    <div className="flex justify-between items-center mb-10">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_15px_#ef4444]"></div>
+                                            <span className="text-xs font-black text-white/50 tracking-[0.3em] uppercase italic">Investigation Closed</span>
+                                        </div>
+                                        <div className="bg-yellow-500 text-blue-900 px-4 py-1 rounded-full font-black text-xs italic">绝密级别 A+</div>
+                                    </div>
+                                    <div className="flex flex-col md:flex-row gap-10 items-center mb-12 text-white">
+                                        <div className="relative">
+                                            <div className="w-32 h-32 bg-blue-900/40 rounded-[2rem] border-4 border-yellow-500 flex items-center justify-center text-5xl shadow-2xl">🍜</div>
+                                            <div className="absolute -bottom-3 -right-3 bg-white rounded-full p-2 text-3xl border-4 border-blue-900 shadow-xl">🐾</div>
+                                        </div>
+                                        <div className="flex-1 text-center md:text-left">
+                                            <div className="text-blue-400 text-xs font-black italic mb-2 uppercase tracking-widest">{selectedDistrict} 情报站</div>
+                                            <h2 className="text-4xl md:text-5xl font-black italic leading-none mb-4">{selectedRest}</h2>
+                                            <div className="flex items-center justify-center md:justify-start gap-1">
+                                                {[...Array(5)].map((_, i) => <i key={i} data-lucide="star" className="fill-yellow-500 text-yellow-500 w-4 h-4"></i>)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 mb-10 shadow-inner">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <span className="text-4xl">🐆</span>
+                                            <span className="font-black text-yellow-500 text-xs italic tracking-[0.2em] uppercase">Clawhauser's Note (AI)</span>
+                                        </div>
+                                        {isAiLoading ? (
+                                            <div className="flex items-center gap-3 text-white/30 py-6 italic text-lg"><i data-lucide="loader-2" className="animate-spin w-6 h-6"></i><span>比对证据库...</span></div>
+                                        ) : (
+                                            <p className="text-white text-xl font-medium italic leading-relaxed">“{aiReport}”</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-5 text-white">
+                                        <button className="flex-1 py-5 police-btn rounded-[1.8rem] text-xl font-black italic flex items-center justify-center gap-3">
+                                            <i data-lucide="navigation" className="w-6 h-6"></i> 立即导航
+                                        </button>
+                                        <button onClick={executeSearch} className="flex-1 py-5 bg-white/5 hover:bg-white/10 rounded-[1.8rem] text-xl font-black italic border border-white/10 transition-all flex items-center justify-center gap-3">
+                                            <i data-lucide="sparkles" className="text-yellow-500 w-6 h-6"></i> 申请新线索
+                                        </button>
+                                    </div>
+                                </div>
+                                <button onClick={() => setStage('HOME')} className="w-full mt-10 py-5 text-white/30 font-black flex items-center justify-center gap-3 text-xs tracking-[0.8em] uppercase hover:text-white hover:tracking-[1em] transition-all duration-500">
+                                    <i data-lucide="rotate-ccw" className="w-4 h-4"></i> 返回指挥部
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="fixed bottom-0 left-0 w-full p-6 pointer-events-none z-0 opacity-10 flex justify-between items-end overflow-hidden">
+                        <p className="text-[120px] font-black italic text-white/5 select-none tracking-tighter leading-none">ZPD</p>
+                        <p className="text-[60px] font-black italic text-white/5 select-none tracking-tighter leading-none">SY-DIVISION</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
